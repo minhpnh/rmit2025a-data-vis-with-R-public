@@ -1,0 +1,1020 @@
+---
+title: "Behind Closed Doors: Victoria’s Hidden Emergency"
+subtitle: "Unveiling Five Years of Family Violence in Data (2019–2024)"
+format:
+  revealjs:
+    theme: simple
+    transition: fade
+    slide-number: true
+    toc: false
+    title-slide-attributes:
+      data-background-image: cover_image.jpg
+      data-background-size: cover
+      data-background-position: center
+output-file: presentation.html
+editor: visual
+---
+
+::: slide
+##### The Rising Tide
+
+```{r}
+# ============================================
+# Load Required Packages
+# ============================================
+library(readxl)
+library(tidyverse)
+library(zoo)
+library(plotly)
+
+# ============================================
+# Define File Path
+# ============================================
+file_path <- "data/Data by Local Government Area Tables 2024 15.20.51.xlsx"
+
+# ============================================
+# Helper: Read Standard LGA Tables (Table 1–3, 7, 16, 18, 19)
+# ============================================
+read_lga_table <- function(file, sheet_name, value_col_name, data_range) {
+  col_names <- c("Police region", "DFFH region", "Local government area",
+                 "2019-20", "2020-21", "2021-22", "2022-23", "2023-24")
+  
+  read_excel(file, sheet = sheet_name, range = data_range, col_names = col_names) %>%
+    fill(`Police region`, `DFFH region`, .direction = "down") %>%
+    mutate(across(`2019-20`:`2023-24`, ~ as.numeric(
+      na_if(str_replace_all(as.character(.), "[^0-9\\.]", ""), "")
+    ))) %>%
+    pivot_longer(
+      cols = `2019-20`:`2023-24`,
+      names_to = "Financial year",
+      values_to = value_col_name
+    ) %>%
+    mutate(across(c(`Police region`, `DFFH region`, `Local government area`, `Financial year`), as.character))
+}
+
+# ============================================
+# Load Required Tables for Plotting
+# ============================================
+LGA_TB1_incident_count <- read_lga_table(file_path, "Table 1", "Incident count", "B15:I93")
+LGA_TB2_incident_rate  <- read_lga_table(file_path, "Table 2", "Incident rate", "B15:I93")
+
+# ============================================
+# Step 1: Join both tables by common keys
+# ============================================
+incident_data <- LGA_TB1_incident_count %>%
+  left_join(LGA_TB2_incident_rate,
+            by = c("Police region", "DFFH region", "Local government area", "Financial year"))
+
+# ============================================
+# Step 2: Aggregate Incident Count and Avg Rate
+# ============================================
+summary_data <- incident_data %>%
+  group_by(`Police region`, `Financial year`) %>%
+  summarise(
+    total_count = sum(`Incident count`, na.rm = TRUE),
+    avg_rate = round(mean(`Incident rate`, na.rm = TRUE), 1),
+    .groups = 'drop'
+  )
+
+# ============================================
+# Step 3: Create Interactive Stacked Bar Plot
+# ============================================
+plot <- plot_ly(
+  data = summary_data,
+  x = ~`Financial year`,
+  y = ~total_count,
+  color = ~`Police region`,
+  type = 'bar',
+  text = ~paste0(
+    "Police Region: ", `Police region`, "<br>",
+    "Incidents: ", total_count, "<br>",
+    "Avg. Rate: ", avg_rate, " per 100,000"
+  ),
+  hoverinfo = 'text'
+) %>%
+  layout(
+    barmode = 'stack',
+    title = 'Family Violence Incident Counts by Police Region',
+    xaxis = list(title = "Financial Year"),
+    yaxis = list(title = "Total Incident Count"),
+    legend = list(title = list(text = "Police Region"))
+  )
+
+# ============================================
+# Display the Plot
+# ============================================
+plot
+```
+:::
+
+::: slide
+##### Not All Victims Are Visible
+
+```{r}
+# Load required libraries
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(scales)
+library(patchwork)
+
+file_path <- "data/Justice System Data Tables 2024.xlsx"
+
+# --- 1. Victim Sex and Age Group ---
+male_data <- read_excel(file_path, sheet = "Table 5", range = "C15:H20", col_names = FALSE)
+female_data <- read_excel(file_path, sheet = "Table 5", range = "C21:H26", col_names = FALSE)
+
+age_groups <- c("00-09", "10-17", "18-24", "25-39", "40-64", "65+")
+male_values <- male_data[[6]]
+female_values <- female_data[[6]]
+
+sex_age_df <- data.frame(
+  AgeGroup = rep(age_groups, 2),
+  Count = c(male_values, female_values),
+  Sex = rep(c("Male", "Female"), each = length(age_groups))
+)
+
+# --- 2. Victim Country of Birth ---
+country_df <- read_excel(file_path, sheet = "Table 7", range = "B15:G21", col_names = FALSE)
+country_birth_df <- country_df %>%
+  select(Country = ...1, Count = ...6) %>%
+  mutate(Country = factor(Country, levels = Country[order(Count)]))
+
+# --- 3. Victim Aboriginal Status ---
+aboriginal_df <- read_excel(file_path, sheet = "Table 8", range = "H15:H17", col_names = "Count")
+aboriginal_df <- tibble(
+  Status = c("Aboriginal", "Non-Aboriginal", "Unknown"),
+  Count = aboriginal_df$Count
+)
+
+
+# === Donut Chart Label Filtering ===
+aboriginal_df <- aboriginal_df %>%
+  mutate(
+    Percent = Count / sum(Count),
+    Label = ifelse(Status == "Non-Aboriginal", paste0(Status, "\n", percent(Percent)), "")
+  )
+# ========== Plotting ==========
+
+# === Plot 1: Victims by Sex and Age Group ===
+plot1 <- ggplot(sex_age_df, aes(x = Count, y = AgeGroup, fill = Sex)) +
+  geom_col(position = "dodge") +
+  labs(title = "Victims by Sex and Age Group", x = "Count", y = NULL) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+# === Plot 2: Victims by Country of Birth ===
+plot2 <- ggplot(country_birth_df, aes(x = Country, y = Count, fill = Country)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  labs(title = "Victims by Country of Birth", x = NULL, y = "Count") +
+  theme_minimal()
+
+# === Plot 3: Donut Chart with Label for Non-Aboriginal Only ===
+plot3 <- ggplot(aboriginal_df, aes(x = 2, y = Count, fill = Status)) +
+  geom_col(width = 1, color = "white") +
+  coord_polar(theta = "y") +
+  geom_text(aes(label = Label), position = position_stack(vjust = 0.5), size = 4, na.rm = TRUE) +
+  xlim(0.5, 2.5) +
+  labs(title = "Victim Aboriginal Status") +
+  theme_void() +
+  theme(legend.position = "bottom")
+
+# === Combine Plots: Each Keeps Its Own Legend ===
+final_plot <- plot1 + plot2 + plot3 + 
+  plot_layout(ncol = 3)
+
+# === Display Plot ===
+print(final_plot)
+```
+:::
+
+::: slide
+##### Home Is the Most Dangerous Place
+
+```{r}
+# ============================================
+# Load Required Packages
+# ============================================
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(zoo)
+
+# ============================================
+# Define File Path
+# ============================================
+file_path <- "data/Data by Local Government Area Tables 2024 15.20.51.xlsx"
+
+# ============================================
+# Helper Function: Read Table 8 – Multi-header wide-to-long
+# ============================================
+read_lga_multiblock <- function(file, sheet, header_range, data_range, value_col = "Count", group_col = "Location", group_levels = NULL) {
+  header_raw <- read_excel(file, sheet = sheet, range = header_range, col_names = FALSE)
+  year_row   <- zoo::na.locf(as.character(header_raw[2, 4:ncol(header_raw)]))
+  group_row  <- str_to_lower(str_replace_all(as.character(header_raw[3, 4:ncol(header_raw)]), "\\s+", "_"))
+  final_colnames <- c("Police region", "DFFH region", "Local government area", paste0(year_row, "_", group_row))
+  
+  data_raw <- read_excel(file, sheet = sheet, range = data_range, col_names = FALSE)
+  colnames(data_raw) <- final_colnames
+  
+  df <- data_raw %>%
+    fill(`Police region`, `DFFH region`, .direction = "down") %>%
+    mutate(across(starts_with("20"), ~ as.numeric(str_replace_all(as.character(.), "[^0-9\\.]", "")))) %>%
+    pivot_longer(
+      cols = starts_with("20"),
+      names_to = c("Financial year", group_col),
+      names_pattern = "^([0-9]{4}-[0-9]{2})_(.*)$",
+      values_to = value_col
+    ) %>%
+    mutate(!!group_col := str_to_title(str_replace_all(.data[[group_col]], "_", " ")))
+  
+  if (!is.null(group_levels)) {
+    df[[group_col]] <- factor(df[[group_col]], levels = group_levels)
+  }
+  
+  df
+}
+
+# ============================================
+# Load Table 8: Incident Location Data
+# ============================================
+LGA_TB8_incident_location <- read_lga_multiblock(
+  file = file_path,
+  sheet = "Table 8",
+  header_range = "B13:N15",
+  data_range = "B16:N94",
+  value_col = "Incident count",
+  group_col = "Location",
+  group_levels = c("Residential Premises", "Non-Residential Premises")
+)
+
+# ============================================
+# Prepare and clean the data
+# ============================================
+location_summary <- LGA_TB8_incident_location %>%
+  mutate(
+    Location = str_trim(as.character(Location)),
+    `Financial year` = factor(`Financial year`, levels = c("2019-20", "2020-21", "2021-22", "2022-23", "2023-24"))
+  ) %>%
+  filter(Location %in% c("Residential Premises", "Non-Residential Premises")) %>%
+  group_by(`Financial year`, Location) %>%
+  summarise(
+    IncidentCount = sum(`Incident count`, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# ============================================
+# Create grouped bar chart
+# ============================================
+ggplot(location_summary, aes(x = `Financial year`, y = IncidentCount, fill = Location)) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.6) +
+  scale_fill_manual(
+    values = c("Residential Premises" = "#0072B2", "Non-Residential Premises" = "#D55E00")
+  ) +
+  labs(
+    title = "Family Violence Incidents by Location Type and Year",
+    x = "Financial Year",
+    y = "Incident Count",
+    fill = "Location Type"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0),
+    axis.text.x = element_text(angle = 0, vjust = 0.5),
+    legend.position = "top"
+  )
+```
+:::
+
+::: slide
+##### Children Caught in the Crossfire
+
+```{r}
+# ============================================
+# Load Required Libraries
+# ============================================
+library(readxl)
+library(tidyverse)
+library(scales)
+library(zoo)
+library(patchwork)
+
+# ============================================
+# Define File Path
+# ============================================
+file_path <- "data/Data by Local Government Area Tables 2024 15.20.51.xlsx"
+
+# ============================================
+# Helper: Read Standard LGA Tables
+# ============================================
+read_lga_table <- function(file, sheet_name, value_col_name, data_range) {
+  col_names <- c("Police region", "DFFH region", "Local government area",
+                 "2019-20", "2020-21", "2021-22", "2022-23", "2023-24")
+  
+  read_excel(file, sheet = sheet_name, range = data_range, col_names = col_names) %>%
+    fill(`Police region`, `DFFH region`, .direction = "down") %>%
+    mutate(across(`2019-20`:`2023-24`, ~ as.numeric(
+      na_if(str_replace_all(as.character(.), "[^0-9\\.]", ""), "")
+    ))) %>%
+    pivot_longer(
+      cols = `2019-20`:`2023-24`,
+      names_to = "Financial year",
+      values_to = value_col_name
+    ) %>%
+    mutate(across(c(`Police region`, `DFFH region`, `Local government area`, `Financial year`), as.character))
+}
+
+# ============================================
+# Load Tables 1 and 7
+# ============================================
+LGA_TB1_incident_count     <- read_lga_table(file_path, "Table 1", "Incident count", "B15:I93")
+LGA_TB7_children_incidents <- read_lga_table(file_path, "Table 7", "Incident count", "B15:I93")
+
+# ============================================
+# Step 1: Summarise Total and Child-Involved Incidents
+# ============================================
+total_by_year <- LGA_TB1_incident_count %>%
+  group_by(`Financial year`) %>%
+  summarise(Total = sum(`Incident count`, na.rm = TRUE), .groups = "drop")
+
+child_by_year <- LGA_TB7_children_incidents %>%
+  group_by(`Financial year`) %>%
+  summarise(WithChildren = sum(`Incident count`, na.rm = TRUE), .groups = "drop")
+
+# ============================================
+# Step 2: Merge and Prepare Grid for Waffle
+# ============================================
+waffle_df <- left_join(total_by_year, child_by_year, by = "Financial year") %>%
+  mutate(
+    WithoutChildren = Total - WithChildren,
+    `With Children` = round((WithChildren / Total) * 100),
+    `Without Children` = 100 - `With Children`
+  ) %>%
+  select(`Financial year`, `With Children`, `Without Children`) %>%
+  pivot_longer(-`Financial year`, names_to = "Type", values_to = "Percent") %>%
+  uncount(weights = Percent) %>%
+  group_by(`Financial year`, Type) %>%
+  mutate(id = row_number()) %>%
+  ungroup() %>%
+  group_by(`Financial year`) %>%
+  mutate(
+    x = (row_number() - 1) %% 10,
+    y = -((row_number() - 1) %/% 10)
+  ) %>%
+  ungroup() %>%
+  mutate(Type = factor(Type, levels = c("With Children", "Without Children")))
+
+# ============================================
+# Step 3: Plot Waffle Chart
+# ============================================
+child_waffle <- ggplot(waffle_df, aes(x = x, y = y, fill = Type)) +
+  geom_tile(color = "white", size = 0.3) +
+  facet_wrap(~`Financial year`, nrow = 1) +
+  coord_equal() +
+  scale_fill_manual(values = c("With Children" = "#D55E00", "Without Children" = "#0072B2")) +
+  labs(
+    title = "Proportion of Family Violence Incidents Involving Children (2019–2024)",
+    fill = "Incident Type"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_text(size = 10, face = "bold"),
+    legend.position = "bottom",
+    plot.title = element_text(face = "bold", hjust = 0)
+  )
+
+# ============================================
+# Display
+# ============================================
+child_waffle
+```
+:::
+
+::: slide
+##### The Intervention Order Funnel
+
+Thousands of FVIOs are sought—but the justice pipeline has friction.
+
+```{r}
+library(readxl)
+library(dplyr)
+library(networkD3)
+library(stringr)
+
+# === Helper function to clean and convert text numbers ===
+extract_numeric <- function(x) {
+  x <- str_remove_all(x, ",")         # remove commas
+  x <- str_extract(x, "\\d+(\\.\\d+)?") # extract first number only
+  as.numeric(x)
+}
+
+# === Load raw data ===
+file_path <- "data/Justice System Data Tables 2024.xlsx"
+
+table1_raw <- read_excel(file_path, sheet = "Table 1", range = "G15:G22", col_names = FALSE)
+table2_raw <- read_excel(file_path, sheet = "Table 2", range = "G16:G18", col_names = FALSE)
+
+# === Extract and clean numeric values ===
+table1 <- sapply(table1_raw[[1]], extract_numeric)
+table2 <- sapply(table2_raw[[1]], extract_numeric)
+
+# === Assign values ===
+fv_incidents <- table1[1]
+offense_recorded <- table1[2]
+offender_charged <- table1[3]
+case_heard <- table1[4]
+custody <- table1[5]
+community <- table1[6]
+other_outcome <- table1[7]
+not_proven <- table1[8]
+
+fvsn_issued <- table2[1]
+fvio_app <- table2[2]
+fvio_issued <- table2[3]
+
+# === Derived values ===
+offense_not_recorded <- fv_incidents - offense_recorded
+fvsn_not_issued <- fv_incidents - fvsn_issued
+offender_not_charged <- offense_recorded - offender_charged
+case_not_heard <- offender_charged - case_heard
+fvio_not_issued <- fvio_app - fvio_issued
+
+# === Define nodes ===
+nodes <- data.frame(name = factor(c(
+  "FV Incidents",                     # 0
+  "Offense Recorded",                # 1
+  "Offense Not Recorded",            # 2
+  "FVSN Issued",                     # 3
+  "FVSN Not Issued",                 # 4
+  "Offender Charged",                # 5
+  "Offender Not Charged",            # 6
+  "New FVIO Application",            # 7
+  "Case Heard in Court",             # 8
+  "Case Not Heard in Court",         # 9
+  "New FVIO Issued",                 # 10
+  "New FVIO Not Issued",             # 11
+  "Charge Proven - Custody",         # 12
+  "Charge Proven - Community Supervision", # 13
+  "Charge Proven - Other Outcome",   # 14
+  "Charge Not Proven"                # 15
+), levels = c( # ensure this is fixed to control appearance
+  "FV Incidents",
+  "Offense Recorded", "Offense Not Recorded",
+  "FVSN Issued", "FVSN Not Issued",
+  "Offender Charged", "Offender Not Charged",
+  "New FVIO Application",
+  "Case Heard in Court", "Case Not Heard in Court",
+  "New FVIO Issued", "New FVIO Not Issued",
+  "Charge Proven - Custody",
+  "Charge Proven - Community Supervision",
+  "Charge Proven - Other Outcome",
+  "Charge Not Proven"
+)))
+
+# === Define links ===
+links <- data.frame(
+  source = c(
+    0, 0, 0, 0,           # FV Incidents → Offense/FVSN
+    1, 1,                 # Offense Recorded → Charged/Not
+    3, 4,                 # FVSN → FVIO App
+    5, 5,                 # Charged → Court
+    7, 7,                 # FVIO App → Issued/Not
+    8, 8, 8, 8            # Court → Outcomes
+  ),
+  target = c(
+    1, 2, 3, 4,
+    5, 6,
+    7, 7,
+    8, 9,
+    10, 11,
+    12, 13, 14, 15
+  ),
+  value = c(
+    offense_recorded, offense_not_recorded, fvsn_issued, fvsn_not_issued,
+    offender_charged, offender_not_charged,
+    fvsn_issued, fvsn_not_issued,
+    case_heard, case_not_heard,
+    fvio_issued, fvio_not_issued,
+    custody, community, other_outcome, not_proven
+  )
+)
+
+# === Draw Sankey Diagram ===
+sankeyNetwork(Links = links, Nodes = nodes,
+              Source = "source", Target = "target",
+              Value = "value", NodeID = "name",
+              fontSize = 12, nodeWidth = 20,
+              sinksRight = FALSE  # makes flows go downward instead of right
+              )
+```
+:::
+
+::::::::: slide
+##### When Protection Fails
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(plotly)
+library(stringr)
+
+file_path <- "data/Justice System Data Tables 2024.xlsx"
+
+# --- Plot 1: FV-Related Homicide Incidents Over 5 Years ---
+incident_data <- read_excel(file_path, sheet = "Table 21", range = "B15:G17", col_names = FALSE)
+colnames(incident_data) <- c("Type", "2019-20", "2020-21", "2021-22", "2022-23", "2023-24")
+
+incident_data <- incident_data %>%
+  mutate(across(`2019-20`:`2023-24`, ~ as.numeric(str_replace(., "≤\\s*3", "3"))))
+
+fv_incidents <- incident_data %>%
+  filter(Type == "Family violence-related") %>%
+  pivot_longer(-Type, names_to = "Year", values_to = "Count")
+
+plot1 <- plot_ly(fv_incidents, x = ~Year, y = ~Count, type = "bar") %>%
+  layout(
+    title = "Family Violence Homicide Incidents (2019–2024)",
+    height = 300,
+    yaxis = list(title = "Incidents"),
+    xaxis = list(title = "")
+  )
+
+# --- Plot 2: Mechanism of Death ---
+mechanism_data <- read_excel(file_path, sheet = "Table 23", range = "B14:D20",
+                             col_names = c("Mechanism", "Victims", "Percent")) %>%
+  mutate(
+    Percent = as.numeric(str_replace_all(Percent, c("," = ".", "%" = "")))
+  )
+
+plot2 <- plot_ly(mechanism_data, x = ~Percent, y = ~Mechanism, type = "bar", orientation = "h",
+                 text = ~paste0(Percent, "%"), textposition = "auto") %>%
+  layout(
+    title = "Mechanism of Death (% of FV Victims)",
+    height = 300,
+    xaxis = list(title = "Percent"),
+    yaxis = list(title = "")
+  )
+
+# --- Plot 3: Donut Chart of Victims by Sex ---
+sex_data <- tibble(
+  Sex = c("Male", "Female"),
+  Victims = c(34, 63)
+)
+
+plot3 <- plot_ly(sex_data, labels = ~Sex, values = ~Victims, type = "pie", hole = 0.5,
+                 textinfo = "label+percent") %>%
+  layout(
+    title = "Victims by Sex (FV Homicides)",
+    height = 300,
+    showlegend = TRUE
+  )
+
+# --- Revised Plot 4: Treemap of Female Victims by Relationship to Offender ---
+relationship_data <- read_excel(file_path, sheet = "Table 28", range = "B14:E23",
+                                col_names = c("Sex", "Relationship", "Victims", "Percent")) %>%
+  fill(Sex, .direction = "down") %>%
+  filter(Sex == "Female", Relationship != "Total") %>%
+  mutate(Victims = as.numeric(str_replace(Victims, "≤\\s*3", "3")))
+
+# Create a single root node: "Female Victims"
+relationship_data <- relationship_data %>%
+  mutate(
+    ids = paste("Female", Relationship, sep = " / "),
+    labels = Relationship,
+    parents = "Female Victims"
+  )
+
+# Add root node
+root_node <- tibble(
+  ids = "Female Victims",
+  labels = "Female Victims",
+  parents = "",
+  Victims = sum(relationship_data$Victims)
+)
+
+# Combine root and children
+treemap_df <- bind_rows(
+  root_node,
+  relationship_data %>% select(ids, labels, parents, Victims)
+)
+
+# Plot
+plot4 <- plot_ly(
+  data = treemap_df,
+  type = "treemap",
+  ids = ~ids,
+  labels = ~labels,
+  parents = ~parents,
+  values = ~Victims,
+  branchvalues = "total"
+) %>%
+  layout(title = "Female Victims by Relationship to Offender",
+         height = 300)
+```
+
+::::: {.columns height="600px" style="row-gap: 0.1rem;"}
+::: {.column width="48%"}
+```{r}
+htmltools::div(style = "width: 100%; max-width: 100%;", plot1)
+```
+:::
+
+::: {.column width="48%"}
+```{r}
+htmltools::div(style = "width: 100%; max-width: 100%;", plot2)
+```
+:::
+:::::
+
+::::: columns
+::: {.column width="48%"}
+```{r}
+htmltools::div(style = "width: 100%; max-width: 100%;", plot3)
+```
+:::
+
+::: {.column width="48%"}
+```{r}
+htmltools::div(style = "width: 100%; max-width: 100%;", plot4)
+```
+:::
+:::::
+:::::::::
+
+::::::: slide
+##### Falling Through the Gaps
+
+```{r}
+library(readxl)
+library(tidyverse)
+
+# Function to import either 25a or 25b
+read_table25_subtable <- function(file, sheet_name, data_range, metric_label, value_col_name = "Count") {
+  # Define column names explicitly
+  col_names <- c("Service type", "2019-20", "2020-21", "2021-22", "2022-23", "2023-24")
+  
+  # Read the subtable
+  data_raw <- read_excel(file, sheet = sheet_name, range = data_range, col_names = col_names)
+  
+  # Reshape and clean
+  data_long <- data_raw %>%
+    pivot_longer(
+      cols = starts_with("20"),
+      names_to = "Financial year",
+      values_to = value_col_name
+    ) %>%
+    mutate(
+      !!value_col_name := str_replace_all(as.character(.data[[value_col_name]]), "[^0-9\\.]", "") %>% as.numeric(),
+      Metric = metric_label
+    )
+  
+  return(data_long)
+}
+
+# File path
+file_path <- "data/Service Sector Data Tables 2024_0.xlsx"
+
+# Table 25a – Clients assisted
+table25a <- read_table25_subtable(
+  file = file_path,
+  sheet_name = "Table 25",
+  data_range = "B15:G17",
+  metric_label = "Clients assisted"
+)
+
+# Table 25b – Support periods
+table25b <- read_table25_subtable(
+  file = file_path,
+  sheet_name = "Table 25",
+  data_range = "B23:G25",
+  metric_label = "Support periods"
+)
+
+# Combine if needed
+table25_combined <- bind_rows(table25a, table25b)
+```
+
+```{r}
+# Load required packages
+library(readxl)
+library(tidyverse)
+library(zoo)
+
+# Generic function for Tables 26–29
+read_service_sector_table <- function(file, sheet_name, header_range, data_range, 
+                                      col2_name, value_col_name = "Count") {
+  # Step 1: Read the 2-row header
+  header_raw <- read_excel(file, sheet = sheet_name, range = header_range, col_names = FALSE)
+  
+  # Extract year row (row 2, columns D to H = 3:7)
+  year_row <- header_raw[2, 3:7] %>%
+    unlist() %>%
+    as.character() %>%
+    zoo::na.locf()
+  
+  dynamic_cols <- paste0("y_", year_row)
+  final_colnames <- c("Service type", col2_name, dynamic_cols)
+  
+  # Step 2: Read data block
+  data_raw <- read_excel(file, sheet = sheet_name, range = data_range, col_names = FALSE)
+  colnames(data_raw) <- final_colnames
+  
+  # Step 3: Clean and reshape
+  data_clean <- data_raw %>%
+    fill(`Service type`, .direction = "down") %>%
+    mutate(across(starts_with("y_"), as.character)) %>%  # Avoid type mismatch
+    pivot_longer(
+      cols = starts_with("y_"),
+      names_to = "Financial year",
+      names_prefix = "y_",
+      values_to = value_col_name
+    ) %>%
+    mutate(
+      `Financial year` = as.character(`Financial year`),
+      !!value_col_name := case_when(
+        str_detect(.data[[value_col_name]], "^≤\\s*3") ~ "3",
+        TRUE ~ str_extract(.data[[value_col_name]], "^\\d+(,\\d{3})*|\\d+")
+      ),
+      !!value_col_name := str_replace_all(.data[[value_col_name]], ",", ""),
+      !!value_col_name := as.numeric(.data[[value_col_name]])
+    )
+  
+  return(data_clean)
+}
+
+# Define file path
+file_path <- "data/Service Sector Data Tables 2024_0.xlsx"
+
+# Table 26 – Reason for presenting
+table26 <- read_service_sector_table(
+  file = file_path,
+  sheet_name = "Table 26",
+  header_range = "B13:H14",
+  data_range = "B15:H29",
+  col2_name = "Reason for presenting"
+)
+
+# Table 27 – Service provided
+table27 <- read_service_sector_table(
+  file = file_path,
+  sheet_name = "Table 27",
+  header_range = "B13:H14",
+  data_range = "B15:H44",
+  col2_name = "Service provided"
+)
+
+# Table 28 – Length of time
+table28 <- read_service_sector_table(
+  file = file_path,
+  sheet_name = "Table 28",
+  header_range = "B13:H14",
+  data_range = "B15:H32",
+  col2_name = "Length of time"
+)
+
+# Table 29 – Reason for closure
+table29 <- read_service_sector_table(
+  file = file_path,
+  sheet_name = "Table 29",
+  header_range = "B13:H14",
+  data_range = "B15:H41",
+  col2_name = "Reason for closure"
+)
+```
+
+```{r}
+# Load required packages
+library(readxl)
+library(tidyverse)
+library(zoo)
+
+# Define file path
+file_path <- "data/Service Sector Data Tables 2024_0.xlsx"
+
+# Step 1: Read 3-row header block (B13:R15)
+header_raw <- read_excel(file_path, sheet = "Table 30", range = "B13:R15", col_names = FALSE)
+
+# Step 2: Define fixed column names
+fixed_cols <- c("Service type", "Age group")
+
+# Step 3: Extract year (row 2) and sex (row 3) labels from columns D to R (i.e. 3:17)
+year_row <- header_raw[2, 3:17] %>% unlist() %>% as.character() %>% zoo::na.locf()
+sex_row  <- header_raw[3, 3:17] %>% unlist() %>% as.character()
+
+# Clean up sex labels (underscores for matching, lowercase)
+sex_row <- str_replace_all(sex_row, "\\s+", "_") %>% str_to_lower()
+
+# Step 4: Build full column names
+dynamic_cols <- paste0(year_row, "_", sex_row)
+final_colnames <- c(fixed_cols, dynamic_cols)
+
+# Step 5: Read the actual data (B16:R31 = 17 columns)
+data_raw <- read_excel(file_path, sheet = "Table 30", range = "B16:R31", col_names = FALSE)
+stopifnot(length(final_colnames) == ncol(data_raw))  # Sanity check
+colnames(data_raw) <- final_colnames
+
+# Step 6: Clean and reshape
+table30 <- data_raw %>%
+  fill(`Service type`, .direction = "down") %>%
+  mutate(across(starts_with("20"), as.character)) %>%
+  mutate(across(starts_with("20"), ~ case_when(
+    str_detect(., "^≤\\s*3") ~ "3",
+    TRUE ~ str_extract(., "^\\d+(,\\d{3})*|\\d+")
+  ))) %>%
+  mutate(across(starts_with("20"), ~ str_replace_all(., ",", "") %>% as.numeric())) %>%
+  pivot_longer(
+    cols = starts_with("20"),
+    names_to = c("Financial year", "Sex"),
+    names_pattern = "^([0-9]{4}-[0-9]{2})_(.*)$",
+    values_to = "Count"
+  ) %>%
+  mutate(
+    `Sex` = str_replace_all(Sex, "_", " ") %>% str_to_title(),
+    `Sex` = factor(Sex, levels = c("Male", "Female", "Other")),
+    `Age group` = as.character(`Age group`)
+  )
+```
+
+:::::: {.columns height="600px"}
+::: {.column width="33%"}
+```{r}
+library(plotly)
+library(htmltools)
+
+plot1 <- table25_combined %>%
+  filter(Metric == "Clients assisted") %>%
+  plot_ly(
+    x = ~`Financial year`, 
+    y = ~Count, 
+    color = ~`Service type`, 
+    type = 'bar',
+    showlegend = FALSE
+  ) %>%
+  layout(
+    barmode = "group", 
+    title = "Clients Assisted", 
+    yaxis = list(title = "Clients"),
+    hovermode = "x unified"
+  )
+
+div(style = "width: 100%;", plot1)
+```
+:::
+
+::: {.column width="33%"}
+```{r}
+plot2 <- table28 %>%
+  group_by(`Length of time`, `Financial year`) %>%
+  summarise(Count = sum(Count), .groups = "drop") %>%
+  plot_ly(
+    x = ~`Financial year`, 
+    y = ~Count, 
+    color = ~`Length of time`, 
+    type = 'bar',
+    showlegend = FALSE
+  ) %>%
+  layout(
+    barmode = "stack", 
+    title = "Duration of Support", 
+    yaxis = list(title = "Count"),
+    hovermode = "x unified"
+  )
+
+div(style = "width: 100%;", plot2)
+```
+:::
+
+::: {.column width="33%"}
+```{r}
+plot3 <- table29 %>%
+  group_by(`Reason for closure`, `Financial year`) %>%
+  summarise(Count = sum(Count), .groups = "drop") %>%
+  plot_ly(
+    x = ~`Financial year`, 
+    y = ~Count, 
+    color = ~`Reason for closure`, 
+    type = 'bar',
+    showlegend = FALSE
+  ) %>%
+  layout(
+    barmode = "stack", 
+    title = "Closure Reasons", 
+    yaxis = list(title = "Count"),
+    hovermode = "x unified"
+  )
+
+div(style = "width: 100%;", plot3)
+```
+:::
+::::::
+:::::::
+
+:::::: slide
+##### Early Warnings Ignored?
+
+```{r setup, include=FALSE}
+library(readxl)
+library(tidyverse)
+library(plotly)
+library(htmltools)
+
+file_path <- "data/Justice System Data Tables 2024.xlsx"
+```
+
+::::: {.columns style="display: flex; gap: 0;"}
+::: {.column width="45%"}
+```{r plot1}
+# Risk Level Bar Chart (L0–L16)
+risk_levels <- read_excel(file_path, sheet = "Table 29", range = "G15:G31", col_names = FALSE) %>% pull(1)
+risk_levels_df <- tibble(
+  Level = factor(paste0("L", 0:16), levels = paste0("L", 0:16)),
+  Count = as.numeric(risk_levels)
+)
+
+htmltools::div(style = "width: 100%; max-width: 100%; height: 300px;",
+  plot_ly(risk_levels_df, x = ~Level, y = ~Count, type = 'bar',
+          marker = list(color = 'steelblue')) %>%
+    layout(title = "Risk Assessment Levels (L0–L16)",
+           xaxis = list(title = "", tickangle = -45),
+           yaxis = list(title = "", zeroline = FALSE),
+           height = 300)
+)
+```
+
+```{r plot2and3}
+# Donut and Pie Charts
+future_likelihood <- read_excel(file_path, sheet = "Table 29", range = "G33", col_names = FALSE) %>% pull(1)
+future_not_likely <- 98816 - future_likelihood
+
+future_data <- tibble(
+  Category = c("Likely", "Not Likely"),
+  Count = c(future_likelihood, future_not_likely)
+)
+
+mh <- sum(read_excel(file_path, sheet = "Table 30", range = "H15:H18", col_names = FALSE) %>% pull(1), na.rm = TRUE)
+drug <- sum(read_excel(file_path, sheet = "Table 30", range = "H19:H22", col_names = FALSE) %>% pull(1), na.rm = TRUE)
+alcohol <- sum(read_excel(file_path, sheet = "Table 30", range = "H23:H26", col_names = FALSE) %>% pull(1), na.rm = TRUE)
+
+factors_data <- tibble(
+  Category = c("Mental Health", "Drug", "Alcohol"),
+  Count = c(mh, drug, alcohol)
+)
+
+htmltools::div(style = "width: 100%; max-width: 100%; height: 300px;",
+  subplot(
+    plot_ly(future_data, labels = ~Category, values = ~Count, type = 'pie',
+            textposition = 'inside', textinfo = 'label+percent',
+            hole = 0.5, height = 300) %>%
+      layout(title = "Future Violence Likelihood", showlegend = TRUE),
+    plot_ly(factors_data, labels = ~Category, values = ~Count, type = 'pie',
+            textposition = 'inside', textinfo = 'label+percent',
+            height = 300) %>%
+      layout(title = "Contributing Factors", showlegend = TRUE),
+    nrows = 1, margin = 0.15
+  )
+)
+```
+:::
+
+::: {.column width="55%"}
+```{r plot4}
+# Risk Factors with overflow labels and text outside bars
+risk_factors <- read_excel(file_path, sheet = "Table 31", range = "B15:G31", col_names = FALSE)
+risk_factors_df <- tibble(
+  Factor = risk_factors[[1]],
+  Count = risk_factors[[6]]
+)
+
+htmltools::div(style = "width: 100%; max-width: 100%; height: 600px;",
+  plot_ly(risk_factors_df, x = ~Count, y = ~reorder(Factor, Count), type = 'bar', orientation = 'h',
+          text = ~Factor, textposition = 'outside',
+          marker = list(color = 'coral')) %>%
+    layout(title = "Risk Factors (2023–24)",
+           xaxis = list(title = "", zeroline = FALSE),
+           yaxis = list(title = "", showticklabels = FALSE),
+           margin = list(l = 10, r = 150), height = 600)
+)
+```
+:::
+:::::
+::::::
+
+::: slide
+##### Toward Safer Futures
+
+<small> - Support early interventions <br> - Strengthen risk tracking <br> - Fund trauma recovery <br> </small>
+
+###### References
+
+<small> Crime Statistics Agency. (2024). *Data by Local Government Area data tables 2024* \[Data file\]. https://www.crimestatistics.vic.gov.au\
+Crime Statistics Agency. (2024). *Justice system data tables 2024* \[Data file\]. https://www.crimestatistics.vic.gov.au\
+Crime Statistics Agency. (2024). *Service sector data tables 2024* \[Data file\]. https://www.crimestatistics.vic.gov.au\
+</small>
+:::
