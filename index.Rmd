@@ -1,22 +1,26 @@
 ---
 title: "Behind Closed Doors: Victoria’s Hidden Emergency"
 subtitle: "Unveiling Five Years of Family Violence in Data (2019–2024)"
+author: "Phan Nhat Minh - s3978598"
 format:
   revealjs:
     theme: simple
     transition: fade
     slide-number: true
     toc: false
+    css: style.css
     title-slide-attributes:
-      data-background-image: cover_image.jpg
+      data-background-image: "assets/cover.png"
       data-background-size: cover
-      data-background-position: center
+      data-background-opacity: "0.3"
+    auto-scale: true
 output-file: index.html
 editor: visual
 ---
 
 ::: slide
-##### The Rising Tide
+## The Rising Tide
+### Escalating Family Violence Across Police Regions
 
 ```{r}
 # ============================================
@@ -103,12 +107,18 @@ plot <- plot_ly(
 # ============================================
 # Display the Plot
 # ============================================
-plot
+
+htmltools::div(class = "standard-plot", plot)
 ```
+
+> Total recorded incidents rose steadily to nearly 100,000 per year.  
+> Rates remain highest in **North West** and **Southern Metro** regions, pointing to **concentrated and growing risk**.
+
 :::
 
 ::: slide
-##### Not All Victims Are Visible
+## Invisible Victims
+### Disparities by Age, Gender, Origin, and Status
 
 ```{r}
 # Load required libraries
@@ -185,13 +195,19 @@ plot3 <- ggplot(aboriginal_df, aes(x = 2, y = Count, fill = Status)) +
 final_plot <- plot1 + plot2 + plot3 + 
   plot_layout(ncol = 3)
 
+ggsave("figures/invisible_victims.png", final_plot, width = 12, height = 5, dpi = 300)
+
 # === Display Plot ===
-print(final_plot)
+knitr::include_graphics("figures/invisible_victims.png")
 ```
+
+> Most victims are women aged 25–39, but significant shares include children and migrants. Over 5% identify as Aboriginal, but underreporting is likely. Systems must serve diverse, often overlooked groups.
+
 :::
 
 ::: slide
-##### Home Is the Most Dangerous Place
+## Where Violence Lives
+### Home as the Most Common Site of Harm
 
 ```{r}
 # ============================================
@@ -269,10 +285,10 @@ location_summary <- LGA_TB8_incident_location %>%
 # ============================================
 # Create grouped bar chart
 # ============================================
-ggplot(location_summary, aes(x = `Financial year`, y = IncidentCount, fill = Location)) +
+slide3_plot <- ggplot(location_summary, aes(x = `Financial year`, y = IncidentCount, fill = Location)) +
   geom_col(position = position_dodge(width = 0.7), width = 0.6) +
   scale_fill_manual(
-    values = c("Residential Premises" = "#0072B2", "Non-Residential Premises" = "#D55E00")
+    values = c("Residential Premises" = "#9d2950", "Non-Residential Premises" = "#ffa600")
   ) +
   labs(
     title = "Family Violence Incidents by Location Type and Year",
@@ -286,11 +302,20 @@ ggplot(location_summary, aes(x = `Financial year`, y = IncidentCount, fill = Loc
     axis.text.x = element_text(angle = 0, vjust = 0.5),
     legend.position = "top"
   )
+
+ggsave("figures/homes.png", slide3_plot, width = 12, height = 5, dpi = 300)
+
+# === Display Plot ===
+knitr::include_graphics("figures/homes.png")
 ```
+
+> Over 80% of family violence incidents occur at residential premises—home is not safe for many victims, and this has remained consistent over five years.
+
 :::
 
 ::: slide
-##### Children Caught in the Crossfire
+## Children at Risk
+### One in Four Incidents Involve Children
 
 ```{r}
 # ============================================
@@ -374,7 +399,7 @@ child_waffle <- ggplot(waffle_df, aes(x = x, y = y, fill = Type)) +
   geom_tile(color = "white", size = 0.3) +
   facet_wrap(~`Financial year`, nrow = 1) +
   coord_equal() +
-  scale_fill_manual(values = c("With Children" = "#D55E00", "Without Children" = "#0072B2")) +
+  scale_fill_manual(values = c("With Children" = "#ffa600", "Without Children" = "#9d2950")) +
   labs(
     title = "Proportion of Family Violence Incidents Involving Children (2019–2024)",
     fill = "Incident Type"
@@ -392,31 +417,36 @@ child_waffle <- ggplot(waffle_df, aes(x = x, y = y, fill = Type)) +
 # ============================================
 # Display
 # ============================================
-child_waffle
+ggsave("figures/child_waffle.png", child_waffle, width = 12, height = 5, dpi = 300)
+
+# === Display Plot ===
+knitr::include_graphics("figures/child_waffle.png")
 ```
+
+> Waffle plots show that more than 25% of family violence incidents involve children—exposing them to direct harm and long-term trauma.
+
 :::
 
 ::: slide
-##### The Intervention Order Funnel
-
-Thousands of FVIOs are sought—but the justice pipeline has friction.
+## The Protection Gap
+### Tracking the Flow of Justice System Responses
 
 ```{r}
 library(readxl)
 library(dplyr)
 library(networkD3)
 library(stringr)
+library(htmltools)
 
 # === Helper function to clean and convert text numbers ===
 extract_numeric <- function(x) {
-  x <- str_remove_all(x, ",")         # remove commas
-  x <- str_extract(x, "\\d+(\\.\\d+)?") # extract first number only
+  x <- str_remove_all(x, ",")
+  x <- str_extract(x, "\\d+(\\.\\d+)?")
   as.numeric(x)
 }
 
 # === Load raw data ===
 file_path <- "data/Justice System Data Tables 2024.xlsx"
-
 table1_raw <- read_excel(file_path, sheet = "Table 1", range = "G15:G22", col_names = FALSE)
 table2_raw <- read_excel(file_path, sheet = "Table 2", range = "G16:G18", col_names = FALSE)
 
@@ -445,56 +475,31 @@ offender_not_charged <- offense_recorded - offender_charged
 case_not_heard <- offender_charged - case_heard
 fvio_not_issued <- fvio_app - fvio_issued
 
-# === Define nodes ===
-nodes <- data.frame(name = factor(c(
-  "FV Incidents",                     # 0
-  "Offense Recorded",                # 1
-  "Offense Not Recorded",            # 2
-  "FVSN Issued",                     # 3
-  "FVSN Not Issued",                 # 4
-  "Offender Charged",                # 5
-  "Offender Not Charged",            # 6
-  "New FVIO Application",            # 7
-  "Case Heard in Court",             # 8
-  "Case Not Heard in Court",         # 9
-  "New FVIO Issued",                 # 10
-  "New FVIO Not Issued",             # 11
-  "Charge Proven - Custody",         # 12
-  "Charge Proven - Community Supervision", # 13
-  "Charge Proven - Other Outcome",   # 14
-  "Charge Not Proven"                # 15
-), levels = c( # ensure this is fixed to control appearance
-  "FV Incidents",
-  "Offense Recorded", "Offense Not Recorded",
-  "FVSN Issued", "FVSN Not Issued",
-  "Offender Charged", "Offender Not Charged",
-  "New FVIO Application",
-  "Case Heard in Court", "Case Not Heard in Court",
-  "New FVIO Issued", "New FVIO Not Issued",
-  "Charge Proven - Custody",
-  "Charge Proven - Community Supervision",
-  "Charge Proven - Other Outcome",
-  "Charge Not Proven"
-)))
+# === Define nodes with counts ===
+node_labels <- c(
+  sprintf("FV Incidents\\n(%s)", fv_incidents),
+  sprintf("Offense Recorded\\n(%s)", offense_recorded),
+  sprintf("Offense Not Recorded\\n(%s)", offense_not_recorded),
+  sprintf("FVSN Issued\\n(%s)", fvsn_issued),
+  sprintf("FVSN Not Issued\\n(%s)", fvsn_not_issued),
+  sprintf("Offender Charged\\n(%s)", offender_charged),
+  sprintf("Offender Not Charged\\n(%s)", offender_not_charged),
+  sprintf("New FVIO Application\\n(%s)", fvio_app),
+  sprintf("Case Heard in Court\\n(%s)", case_heard),
+  sprintf("Case Not Heard in Court\\n(%s)", case_not_heard),
+  sprintf("New FVIO Issued\\n(%s)", fvio_issued),
+  sprintf("New FVIO Not Issued\\n(%s)", fvio_not_issued),
+  sprintf("Charge Proven - Custody\\n(%s)", custody),
+  sprintf("Charge Proven - Community\\n(%s)", community),
+  sprintf("Charge Proven - Other\\n(%s)", other_outcome),
+  sprintf("Charge Not Proven\\n(%s)", not_proven)
+)
+nodes <- data.frame(name = factor(node_labels))
 
 # === Define links ===
 links <- data.frame(
-  source = c(
-    0, 0, 0, 0,           # FV Incidents → Offense/FVSN
-    1, 1,                 # Offense Recorded → Charged/Not
-    3, 4,                 # FVSN → FVIO App
-    5, 5,                 # Charged → Court
-    7, 7,                 # FVIO App → Issued/Not
-    8, 8, 8, 8            # Court → Outcomes
-  ),
-  target = c(
-    1, 2, 3, 4,
-    5, 6,
-    7, 7,
-    8, 9,
-    10, 11,
-    12, 13, 14, 15
-  ),
+  source = c(0, 0, 0, 0, 1, 1, 3, 4, 5, 5, 7, 7, 8, 8, 8, 8),
+  target = c(1, 2, 3, 4, 5, 6, 7, 7, 8, 9, 10, 11, 12, 13, 14, 15),
   value = c(
     offense_recorded, offense_not_recorded, fvsn_issued, fvsn_not_issued,
     offender_charged, offender_not_charged,
@@ -505,18 +510,38 @@ links <- data.frame(
   )
 )
 
-# === Draw Sankey Diagram ===
-sankeyNetwork(Links = links, Nodes = nodes,
-              Source = "source", Target = "target",
-              Value = "value", NodeID = "name",
-              fontSize = 12, nodeWidth = 20,
-              sinksRight = FALSE  # makes flows go downward instead of right
-              )
+# === Color palette for nodes (matching theme) ===
+node_color <- c(
+  rep("#9d2950", 5),
+  rep("#c75d7c", 2),
+  "#9d2950", "#e3a1b4",
+  rep("#d4849c", 2),
+  "#9d2950", "#f0c3ce",
+  "#a01f44", "#ba476d", "#d47a9b", "#f4b9cd"
+)
+colour_scale <- paste0("d3.scaleOrdinal().range([\"", paste(node_color, collapse = '", "'), "\"])")
+
+# === Draw Sankey ===
+htmltools::div(
+  style = "width: 100%; height: auto;",
+  sankeyNetwork(
+    Links = links, Nodes = nodes,
+    Source = "source", Target = "target",
+    Value = "value", NodeID = "name",
+    fontSize = 13, nodeWidth = 30,
+    sinksRight = FALSE,
+    colourScale = colour_scale
+  )
+)
 ```
+
+> This funnel shows systemic attrition. Many incidents don’t lead to charges or protection orders. Even when applications are made, final intervention is not guaranteed.
+
 :::
 
-::::::::: slide
-##### When Protection Fails
+:::::: slide
+## When Protection Fails
+### The Human Cost of Inaction
 
 ```{r}
 library(readxl)
@@ -532,7 +557,7 @@ incident_data <- read_excel(file_path, sheet = "Table 21", range = "B15:G17", co
 colnames(incident_data) <- c("Type", "2019-20", "2020-21", "2021-22", "2022-23", "2023-24")
 
 incident_data <- incident_data %>%
-  mutate(across(`2019-20`:`2023-24`, ~ as.numeric(str_replace(., "≤\\s*3", "3"))))
+  mutate(across(`2019-20`:`2023-24`, ~ as.numeric(str_replace(., "\u2264\\s*3", "3"))))
 
 fv_incidents <- incident_data %>%
   filter(Type == "Family violence-related") %>%
@@ -541,7 +566,6 @@ fv_incidents <- incident_data %>%
 plot1 <- plot_ly(fv_incidents, x = ~Year, y = ~Count, type = "bar") %>%
   layout(
     title = "Family Violence Homicide Incidents (2019–2024)",
-    height = 300,
     yaxis = list(title = "Incidents"),
     xaxis = list(title = "")
   )
@@ -549,15 +573,12 @@ plot1 <- plot_ly(fv_incidents, x = ~Year, y = ~Count, type = "bar") %>%
 # --- Plot 2: Mechanism of Death ---
 mechanism_data <- read_excel(file_path, sheet = "Table 23", range = "B14:D20",
                              col_names = c("Mechanism", "Victims", "Percent")) %>%
-  mutate(
-    Percent = as.numeric(str_replace_all(Percent, c("," = ".", "%" = "")))
-  )
+  mutate(Percent = as.numeric(str_replace_all(Percent, c("," = ".", "%" = ""))) )
 
 plot2 <- plot_ly(mechanism_data, x = ~Percent, y = ~Mechanism, type = "bar", orientation = "h",
                  text = ~paste0(Percent, "%"), textposition = "auto") %>%
   layout(
     title = "Mechanism of Death (% of FV Victims)",
-    height = 300,
     xaxis = list(title = "Percent"),
     yaxis = list(title = "")
   )
@@ -572,18 +593,16 @@ plot3 <- plot_ly(sex_data, labels = ~Sex, values = ~Victims, type = "pie", hole 
                  textinfo = "label+percent") %>%
   layout(
     title = "Victims by Sex (FV Homicides)",
-    height = 300,
     showlegend = TRUE
   )
 
-# --- Revised Plot 4: Treemap of Female Victims by Relationship to Offender ---
+# --- Plot 4: Treemap of Female Victims by Relationship to Offender ---
 relationship_data <- read_excel(file_path, sheet = "Table 28", range = "B14:E23",
                                 col_names = c("Sex", "Relationship", "Victims", "Percent")) %>%
   fill(Sex, .direction = "down") %>%
   filter(Sex == "Female", Relationship != "Total") %>%
-  mutate(Victims = as.numeric(str_replace(Victims, "≤\\s*3", "3")))
+  mutate(Victims = as.numeric(str_replace(Victims, "\u2264\\s*3", "3")))
 
-# Create a single root node: "Female Victims"
 relationship_data <- relationship_data %>%
   mutate(
     ids = paste("Female", Relationship, sep = " / "),
@@ -591,7 +610,6 @@ relationship_data <- relationship_data %>%
     parents = "Female Victims"
   )
 
-# Add root node
 root_node <- tibble(
   ids = "Female Victims",
   labels = "Female Victims",
@@ -599,13 +617,11 @@ root_node <- tibble(
   Victims = sum(relationship_data$Victims)
 )
 
-# Combine root and children
 treemap_df <- bind_rows(
   root_node,
   relationship_data %>% select(ids, labels, parents, Victims)
 )
 
-# Plot
 plot4 <- plot_ly(
   data = treemap_df,
   type = "treemap",
@@ -615,41 +631,44 @@ plot4 <- plot_ly(
   values = ~Victims,
   branchvalues = "total"
 ) %>%
-  layout(title = "Female Victims by Relationship to Offender",
-         height = 300)
+  layout(title = "Female Victims by Relationship to Offender")
 ```
 
-::::: {.columns height="600px" style="row-gap: 0.1rem;"}
-::: {.column width="48%"}
+::::: {.columns height="400px" style="gap: 1rem;"}
+::: {.column width="50%"}
 ```{r}
-htmltools::div(style = "width: 100%; max-width: 100%;", plot1)
+htmltools::div(class = "standard-plot", plot1)
 ```
 :::
 
-::: {.column width="48%"}
+::: {.column width="50%"}
 ```{r}
-htmltools::div(style = "width: 100%; max-width: 100%;", plot2)
+htmltools::div(class = "standard-plot", plot2)
+```
+:::
+:::::
+
+::::: {.columns height="600px" style="gap: 1rem;"}
+::: {.column width="50%"}
+```{r}
+htmltools::div(class = "standard-plot", plot3)
+```
+:::
+
+::: {.column width="50%"}
+```{r}
+htmltools::div(class = "standard-plot", plot4)
 ```
 :::
 :::::
 
-::::: columns
-::: {.column width="48%"}
-```{r}
-htmltools::div(style = "width: 100%; max-width: 100%;", plot3)
-```
-:::
+> Homicides remain a tragic endpoint. Two-thirds of victims are women, often killed by partners. Mechanisms of death and relationship data point to patterns we can prevent.
 
-::: {.column width="48%"}
-```{r}
-htmltools::div(style = "width: 100%; max-width: 100%;", plot4)
-```
-:::
-:::::
-:::::::::
+::::::
 
 ::::::: slide
-##### Falling Through the Gaps
+## Falling Through the Gaps
+### Declining Support Volumes in Housing & Health
 
 ```{r}
 library(readxl)
@@ -842,82 +861,78 @@ table30 <- data_raw %>%
   )
 ```
 
-:::::: {.columns height="600px"}
+::::: {.columns height="600px"}
 ::: {.column width="33%"}
-```{r}
-library(plotly)
-library(htmltools)
-
-plot1 <- table25_combined %>%
-  filter(Metric == "Clients assisted") %>%
-  plot_ly(
+```{r echo=FALSE}
+# Clients Assisted
+htmltools::div(class = "standard-plot",
+  plotly::plot_ly(
+    data = table25_combined %>% filter(Metric == "Clients assisted"),
     x = ~`Financial year`, 
     y = ~Count, 
     color = ~`Service type`, 
     type = 'bar',
     showlegend = FALSE
-  ) %>%
-  layout(
+  ) %>% plotly::layout(
     barmode = "group", 
     title = "Clients Assisted", 
     yaxis = list(title = "Clients"),
     hovermode = "x unified"
   )
-
-div(style = "width: 100%;", plot1)
+)
 ```
 :::
 
 ::: {.column width="33%"}
-```{r}
-plot2 <- table28 %>%
-  group_by(`Length of time`, `Financial year`) %>%
-  summarise(Count = sum(Count), .groups = "drop") %>%
-  plot_ly(
+```{r echo=FALSE}
+# Duration of Support
+htmltools::div(class = "standard-plot",
+  plotly::plot_ly(
+    data = table28 %>% group_by(`Length of time`, `Financial year`) %>% summarise(Count = sum(Count), .groups = "drop"),
     x = ~`Financial year`, 
     y = ~Count, 
     color = ~`Length of time`, 
     type = 'bar',
     showlegend = FALSE
-  ) %>%
-  layout(
+  ) %>% plotly::layout(
     barmode = "stack", 
     title = "Duration of Support", 
     yaxis = list(title = "Count"),
     hovermode = "x unified"
   )
-
-div(style = "width: 100%;", plot2)
+)
 ```
 :::
 
 ::: {.column width="33%"}
-```{r}
-plot3 <- table29 %>%
-  group_by(`Reason for closure`, `Financial year`) %>%
-  summarise(Count = sum(Count), .groups = "drop") %>%
-  plot_ly(
+```{r echo=FALSE}
+# Closure Reasons
+htmltools::div(class = "standard-plot",
+  plotly::plot_ly(
+    data = table29 %>% group_by(`Reason for closure`, `Financial year`) %>% summarise(Count = sum(Count), .groups = "drop"),
     x = ~`Financial year`, 
     y = ~Count, 
     color = ~`Reason for closure`, 
     type = 'bar',
     showlegend = FALSE
-  ) %>%
-  layout(
+  ) %>% plotly::layout(
     barmode = "stack", 
     title = "Closure Reasons", 
     yaxis = list(title = "Count"),
     hovermode = "x unified"
   )
-
-div(style = "width: 100%;", plot3)
+)
 ```
 :::
 ::::::
+
+> Services are shrinking—not because demand is dropping, but due to strained capacity. Support periods are shorter and fewer people are being helped year-on-year.
+
 :::::::
 
 :::::: slide
-##### Early Warnings Ignored?
+## Missed Warnings
+### Risk Scores, Red Flags, and Inaction
 
 ```{r setup, include=FALSE}
 library(readxl)
@@ -928,8 +943,9 @@ library(htmltools)
 file_path <- "data/Justice System Data Tables 2024.xlsx"
 ```
 
-::::: {.columns style="display: flex; gap: 0;"}
+::::: {.columns style="display: flex; gap: 1rem; height: 600px;"}
 ::: {.column width="45%"}
+
 ```{r plot1}
 # Risk Level Bar Chart (L0–L16)
 risk_levels <- read_excel(file_path, sheet = "Table 29", range = "G15:G31", col_names = FALSE) %>% pull(1)
@@ -938,18 +954,19 @@ risk_levels_df <- tibble(
   Count = as.numeric(risk_levels)
 )
 
-htmltools::div(style = "width: 100%; max-width: 100%; height: 300px;",
+htmltools::div(style = "width: 100%; height: 180px;",
   plot_ly(risk_levels_df, x = ~Level, y = ~Count, type = 'bar',
-          marker = list(color = 'steelblue')) %>%
+          marker = list(color = '#9d2950')) %>%
     layout(title = "Risk Assessment Levels (L0–L16)",
            xaxis = list(title = "", tickangle = -45),
            yaxis = list(title = "", zeroline = FALSE),
-           height = 300)
+           margin = list(t = 30, b = 40),
+           height = 180)
 )
 ```
 
-```{r plot2and3}
-# Donut and Pie Charts
+```{r plot2}
+# Donut Chart: Future Violence Likelihood
 future_likelihood <- read_excel(file_path, sheet = "Table 29", range = "G33", col_names = FALSE) %>% pull(1)
 future_not_likely <- 98816 - future_likelihood
 
@@ -958,6 +975,17 @@ future_data <- tibble(
   Count = c(future_likelihood, future_not_likely)
 )
 
+htmltools::div(style = "width: 100%; height: 180px;",
+  plot_ly(future_data, labels = ~Category, values = ~Count, type = 'pie',
+          textinfo = 'label+percent', hole = 0.5,
+          marker = list(colors = c("#ffa600", "#9d2950")),
+          text = ~paste(Category, "<br>", Count, "cases")) %>%
+    layout(title = "Future Violence Likelihood", height = 180)
+)
+```
+
+```{r plot3}
+# Pie Chart: Contributing Factors
 mh <- sum(read_excel(file_path, sheet = "Table 30", range = "H15:H18", col_names = FALSE) %>% pull(1), na.rm = TRUE)
 drug <- sum(read_excel(file_path, sheet = "Table 30", range = "H19:H22", col_names = FALSE) %>% pull(1), na.rm = TRUE)
 alcohol <- sum(read_excel(file_path, sheet = "Table 30", range = "H23:H26", col_names = FALSE) %>% pull(1), na.rm = TRUE)
@@ -967,18 +995,12 @@ factors_data <- tibble(
   Count = c(mh, drug, alcohol)
 )
 
-htmltools::div(style = "width: 100%; max-width: 100%; height: 300px;",
-  subplot(
-    plot_ly(future_data, labels = ~Category, values = ~Count, type = 'pie',
-            textposition = 'inside', textinfo = 'label+percent',
-            hole = 0.5, height = 300) %>%
-      layout(title = "Future Violence Likelihood", showlegend = TRUE),
-    plot_ly(factors_data, labels = ~Category, values = ~Count, type = 'pie',
-            textposition = 'inside', textinfo = 'label+percent',
-            height = 300) %>%
-      layout(title = "Contributing Factors", showlegend = TRUE),
-    nrows = 1, margin = 0.15
-  )
+htmltools::div(style = "width: 100%; height: 180px;",
+  plot_ly(factors_data, labels = ~Category, values = ~Count, type = 'pie',
+          textinfo = 'label+percent',
+          marker = list(colors = c("#ffa600", "#ff6361", "#9d2950")),
+          text = ~paste(Category, "<br>", Count, "cases")) %>%
+    layout(title = "Contributing Factors", height = 180)
 )
 ```
 :::
@@ -992,29 +1014,58 @@ risk_factors_df <- tibble(
   Count = risk_factors[[6]]
 )
 
-htmltools::div(style = "width: 100%; max-width: 100%; height: 600px;",
+htmltools::div(style = "width: 100%; height: 600px;",
   plot_ly(risk_factors_df, x = ~Count, y = ~reorder(Factor, Count), type = 'bar', orientation = 'h',
-          text = ~Factor, textposition = 'outside',
-          marker = list(color = 'coral')) %>%
+          text = ~paste(Factor, "<br>", Count, "cases"), textposition = 'outside',
+          marker = list(color = '#d47a9b')) %>%
     layout(title = "Risk Factors (2023–24)",
            xaxis = list(title = "", zeroline = FALSE),
            yaxis = list(title = "", showticklabels = FALSE),
-           margin = list(l = 10, r = 150), height = 600)
+           margin = list(l = 10, r = 150),
+           height = 600)
 )
 ```
 :::
 :::::
+
+> Thousands of L17 assessments indicate high risk. Many include mental health, drug, or alcohol factors—but these signals often fail to trigger effective response.
+
 ::::::
 
 ::: slide
-##### Toward Safer Futures
+## Toward Safer Futures
 
-<small> - Support early interventions <br> - Strengthen risk tracking <br> - Fund trauma recovery <br> </small>
+<p class="summary-paragraph">
+Family violence in Victoria is not just widespread—it’s systemic, predictable, and preventable. The data reveals clear patterns: who is at risk, where protection breaks down, and where support is failing to reach. If we respond earlier, act on risk signals, and strengthen care beyond crisis points, we can stop violence before it escalates. <strong>Prevention is not a mystery—it’s a missed opportunity.</strong>
+</p>
 
-###### References
+### <span class="accent">Key Takeaways from “Behind Closed Doors”</span>
 
-<small> Crime Statistics Agency. (2024). *Data by Local Government Area data tables 2024* \[Data file\]. https://www.crimestatistics.vic.gov.au\
-Crime Statistics Agency. (2024). *Justice system data tables 2024* \[Data file\]. https://www.crimestatistics.vic.gov.au\
-Crime Statistics Agency. (2024). *Service sector data tables 2024* \[Data file\]. https://www.crimestatistics.vic.gov.au\
+<ul class="takeaway-list">
+  <li><strong>Family violence is rising and geographically uneven</strong><br>
+  Incident rates are highest in North West and Southern Metro regions, with annual cases nearing 100,000—showing persistent and localized crisis zones.</li>
+
+  <li><strong>Victims are diverse—but not equally supported</strong><br>
+  Women dominate victim profiles, but children, migrants, and Aboriginal Victorians are significantly impacted and often underserved in response systems.</li>
+
+  <li><strong>Home remains the epicentre of violence</strong><br>
+  Over 80% of incidents occur in residential settings, showing violence is most likely to happen where victims should feel safest.</li>
+
+  <li><strong>Protective systems are leaky and incomplete</strong><br>
+  Thousands of FVIOs are issued each year, yet large drop-offs occur at each stage—from offense recording to final court outcomes.</li>
+
+  <li><strong>Support services are declining despite high risk</strong><br>
+  Homelessness and health responses show shrinking service volumes—not because need is falling, but due to resource strain and limited capacity.</li>
+
+  <li><strong>We have the data to prevent harm—but don’t act fast enough</strong><br>
+  Risk assessments consistently flag danger, yet patterns repeat. Early intervention, cross-system tracking, and trauma-informed recovery are crucial next steps.</li>
+</ul>
+
+### References
+
+<small>
+Crime Statistics Agency. (2024). <em>Data by Local Government Area data tables 2024</em> [Data file]. https://www.crimestatistics.vic.gov.au<br>
+Crime Statistics Agency. (2024). <em>Justice system data tables 2024</em> [Data file]. https://www.crimestatistics.vic.gov.au<br>
+Crime Statistics Agency. (2024). <em>Service sector data tables 2024</em> [Data file]. https://www.crimestatistics.vic.gov.au
 </small>
 :::

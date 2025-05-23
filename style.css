@@ -1,0 +1,144 @@
+/* ===============================
+   Reveal.js Professional Styling
+   =============================== */
+
+/* ---- Base Layout & Typography ---- */
+.reveal {
+  font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+  font-size: 20px;
+  line-height: 1.6;
+  color: #222;
+  max-width: 90%;
+  margin: auto;
+}
+
+.reveal section {
+  max-height: 100vh;
+  overflow-y: auto;
+  padding-bottom: 1em;
+}
+
+/* ---- Slide Titles ---- */
+.reveal h1,
+.reveal h2 {
+  color: #9d2950;
+  font-weight: 700;
+  text-align: left;
+}
+
+.reveal h2 {
+  font-size: 1.8em;
+  margin-bottom: 0.3em;
+  border-bottom: 2px solid #9d2950;
+  padding-bottom: 0.2em;
+}
+
+.reveal h3 {
+  font-size: 1.3em;
+  color: #555;
+  margin-bottom: 0.8em;
+}
+
+/* ---- Insight/Highlight Box ---- */
+.reveal blockquote {
+  font-size: 0.95em;
+  color: #333;
+  background-color: #f8f1f4;
+  border-left: 5px solid #9d2950;
+  padding: 0.75em 1.2em;
+  margin: 1.2em 0;
+  line-height: 1.5;
+  border-radius: 6px;
+}
+
+/* ---- Slide Numbers ---- */
+.reveal .slide-number {
+  bottom: 14px;
+  right: 20px;
+  font-size: 0.7em;
+  color: #999;
+}
+
+/* ===============================
+   Plot & Layout Styling
+   =============================== */
+
+/* Universal plot wrapper for consistent size */
+.standard-plot {
+  width: 100%;
+  max-width: 100%;
+  height: 400px;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Direct plot size enforcement */
+.plotly,
+.reveal .plotly .svg-container,
+.reveal .plotly .main-svg {
+  max-width: 100%;
+  max-height: 400px !important;
+  height: 400px !important;
+}
+
+/* Prevent column/plot scroll overflow */
+.reveal .columns,
+.reveal .plotly,
+.reveal .column,
+.reveal pre {
+  max-height: 80vh;
+  overflow: auto;
+}
+
+/* Optional: fix inner plot height for Plotly */
+.plot-container .svg-container {
+  height: 100% !important;
+}
+
+/* ===============================
+   Code & Reference Styling
+   =============================== */
+
+.reveal pre code {
+  font-size: 0.8em;
+  line-height: 1.4;
+  background-color: #f5f5f5;
+  border-left: 3px solid #9d2950;
+  padding: 0.5em 1em;
+}
+
+/* Reference text */
+.reveal small {
+  font-size: 0.75em;
+  color: #444;
+  line-height: 1.4;
+  display: block;
+  margin-top: 1.5em;
+}
+
+/* ===============================
+   Conclusion Slide Styling
+   =============================== */
+
+.summary-paragraph {
+  font-size: 0.8em;
+  line-height: 1.6;
+  margin-bottom: 1.2em;
+}
+
+.accent {
+  color: #9d2950;
+  font-weight: bold;
+}
+
+.takeaway-list {
+  padding-left: 1.2em;
+  font-size: 0.7em;
+  margin-top: 0.5em;
+}
+
+.takeaway-list li {
+  margin-bottom: 1em;
+}
